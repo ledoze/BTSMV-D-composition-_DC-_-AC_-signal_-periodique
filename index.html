@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Décomposition d'un signal périodique : composante continue + alternative</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f7f7f5;--card:#fff;--fg:#1d1d1b;--mut:#6b6b66;--grid:#e3e3de;--bd:#d8d8d2;
+--s:#2563eb;--dc:#ea7a0c;--ac:#16a34a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17171a;--card:#202024;--fg:#ececea;--mut:#9a9a94;--grid:#34343a;--bd:#3a3a40;--s:#6ea0ff;--dc:#ffa043;--ac:#4ade80}}
+:root[data-theme="dark"]{--bg:#17171a;--card:#202024;--fg:#ececea;--mut:#9a9a94;--grid:#34343a;--bd:#3a3a40;--s:#6ea0ff;--dc:#ffa043;--ac:#4ade80}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45}
+main{max-width:900px;margin:0 auto;padding:16px}
+h1{font-size:1.3rem;margin:0 0 4px}
+p.sub{margin:0 0 14px;color:var(--mut);font-size:.92rem}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:12px}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 16px}
+label{display:flex;flex-direction:column;font-size:.85rem;color:var(--mut);gap:4px}
+label b{color:var(--fg);font-weight:600}
+select,input[type=range]{width:100%}
+select{padding:6px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--fg);font-size:.95rem}
+.ch h2{font-size:.95rem;margin:0 0 6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+canvas{width:100%;height:170px;display:block}
+.eq{font-size:1.05rem;text-align:center;padding:8px;font-family:Georgia,serif}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.stat{border:1px solid var(--bd);border-radius:10px;padding:8px 10px}
+.stat span{display:block;font-size:.75rem;color:var(--mut)}
+.stat strong{font-size:1.1rem;font-variant-numeric:tabular-nums}
+.note{font-size:.85rem;color:var(--mut);margin:6px 0 0}
+</style>
+</head>
+<body>
+<main>
+<h1>Signal périodique = composante continue + composante alternative</h1>
+<p class="sub">s(t) = S<sub>moy</sub> + s<sub>~</sub>(t), avec S<sub>moy</sub> = (1/T)∫<sub>0</sub><sup>T</sup> s(t) dt et ⟨s<sub>~</sub>⟩ = 0.</p>
+
+<div class="card controls">
+  <label>Forme du signal
+    <select id="shape">
+      <option value="sine">Sinusoïde</option>
+      <option value="square">Carré (symétrique)</option>
+      <option value="pulse">Impulsions (rapport cyclique)</option>
+      <option value="tri">Triangle</option>
+      <option value="saw">Dent de scie</option>
+      <option value="full">Sinus redressé double alternance</option>
+      <option value="half">Sinus redressé simple alternance</option>
+      <option value="mix">Somme de 2 harmoniques</option>
+    </select>
+  </label>
+  <label>Amplitude A : <b id="vA"></b>
+    <input id="A" type="range" min="0.5" max="5" step="0.1" value="2"></label>
+  <label>Décalage (offset) : <b id="vO"></b>
+    <input id="O" type="range" min="-3" max="3" step="0.1" value="1"></label>
+  <label>Fréquence f : <b id="vF"></b>
+    <input id="F" type="range" min="1" max="20" step="1" value="5"></label>
+  <label id="dutyBox">Rapport cyclique α : <b id="vD"></b>
+    <input id="D" type="range" min="0.05" max="0.95" step="0.01" value="0.3"></label>
+</div>
+
+<div class="card ch"><h2><span class="dot" style="background:var(--s)"></span>Signal s(t) <small style="color:var(--mut);font-weight:400">— la ligne orange en pointillés est la valeur moyenne</small></h2><canvas id="c1"></canvas></div>
+<div class="card ch"><h2><span class="dot" style="background:var(--dc)"></span>Composante continue S<sub>moy</sub> (constante)</h2><canvas id="c2"></canvas></div>
+<div class="card ch"><h2><span class="dot" style="background:var(--ac)"></span>Composante alternative s<sub>~</sub>(t) = s(t) − S<sub>moy</sub></h2><canvas id="c3"></canvas></div>
+
+<div class="card">
+  <div class="eq" id="eq"></div>
+  <div class="stats">
+    <div class="stat"><span>Valeur moyenne S<sub>moy</sub></span><strong id="sMean"></strong></div>
+    <div class="stat"><span>Moyenne de s<sub>~</sub></span><strong id="sAcMean"></strong></div>
+    <div class="stat"><span>Valeur efficace de s</span><strong id="sRms"></strong></div>
+    <div class="stat"><span>Valeur efficace de s<sub>~</sub></span><strong id="sAcRms"></strong></div>
+  </div>
+  <p class="note">Relation vérifiée numériquement : S<sub>eff</sub>² = S<sub>moy</sub>² + S<sub>~eff</sub>² <span id="chk"></span></p>
+</div>
+</main>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const TAU = 2*Math.PI;
+
+  // Signal sur la phase p ∈ [0,1[ (hors offset)
+  const shapes = {
+    sine:  (p,A)   => A*Math.sin(TAU*p),
+    square:(p,A)   => p<0.5 ? A : -A,
+    pulse: (p,A,d) => p<d ? A : 0,
+    tri:   (p,A)   => A*(p<0.5 ? 4*p-1 : 3-4*p),
+    saw:   (p,A)   => A*(2*p-1),
+    full:  (p,A)   => A*Math.abs(Math.sin(Math.PI*p)),
+    half:  (p,A)   => A*Math.max(0,Math.sin(TAU*p)),
+    mix:   (p,A)   => A*(0.7*Math.sin(TAU*p)+0.3*Math.sin(TAU*3*p+0.6))
+  };
+
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const fmt = v => (Math.abs(v)<5e-4?0:v).toFixed(3);
+
+  function params(){
+    return {shape:$('shape').value, A:+$('A').value, O:+$('O').value, f:+$('F').value, d:+$('D').value};
+  }
+
+  function s(t,P){
+    const T=1/P.f; let p=(t/T)%1; if(p<0)p+=1;
+    return shapes[P.shape](p,P.A,P.d)+P.O;
+  }
+
+  // Calcul numérique sur exactement une période (somme de Riemann, N grand)
+  function stats(P){
+    const N=20000,T=1/P.f; let sum=0;
+    const v=new Float64Array(N);
+    for(let i=0;i<N;i++){v[i]=s((i+0.5)/N*T,P);sum+=v[i];}
+    const mean=sum/N; let sq=0,sqAc=0,acSum=0;
+    for(let i=0;i<N;i++){const a=v[i]-mean;sq+=v[i]*v[i];sqAc+=a*a;acSum+=a;}
+    return {mean, acMean:acSum/N, rms:Math.sqrt(sq/N), acRms:Math.sqrt(sqAc/N)};
+  }
+
+  function setup(cv){
+    const dpr=window.devicePixelRatio||1, r=cv.getBoundingClientRect();
+    cv.width=Math.round(r.width*dpr); cv.height=Math.round(r.height*dpr);
+    const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+    return {ctx,w:r.width,h:r.height};
+  }
+
+  function plot(cv, fn, color, yMin, yMax, P, meanLine){
+    const {ctx,w,h}=setup(cv);
+    const L=40,R=10,Tp=8,B=22, W=w-L-R, H=h-Tp-B;
+    const nP=3, tMax=nP/P.f;
+    const X=t=>L+t/tMax*W, Y=v=>Tp+(yMax-v)/(yMax-yMin)*H;
+    ctx.clearRect(0,0,w,h);
+    ctx.font='11px system-ui,sans-serif'; ctx.textBaseline='middle';
+    // grille horizontale
+    const step=(yMax-yMin)>8?2:1;
+    ctx.lineWidth=1; ctx.strokeStyle=css('--grid'); ctx.fillStyle=css('--mut'); ctx.textAlign='right';
+    for(let v=Math.ceil(yMin/step)*step; v<=yMax; v+=step){
+      ctx.beginPath(); ctx.moveTo(L,Y(v)); ctx.lineTo(L+W,Y(v)); ctx.stroke();
+      ctx.fillText(v.toFixed(0),L-6,Y(v));
+    }
+    // séparateurs de périodes + axe temps (ms)
+    ctx.textAlign='center'; ctx.textBaseline='top';
+    for(let k=0;k<=nP;k++){
+      const t=k/P.f; ctx.strokeStyle=css('--grid');
+      ctx.beginPath(); ctx.moveTo(X(t),Tp); ctx.lineTo(X(t),Tp+H); ctx.stroke();
+      ctx.fillText((t*1000).toFixed(0)+' ms',Math.min(Math.max(X(t),L+14),L+W-14),Tp+H+5);
+    }
+    // axe zéro
+    if(yMin<0&&yMax>0){ctx.strokeStyle=css('--mut');ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(L,Y(0));ctx.lineTo(L+W,Y(0));ctx.stroke();}
+    // moyenne en pointillés
+    if(meanLine!==undefined){
+      ctx.setLineDash([6,4]);ctx.strokeStyle=css('--dc');ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(L,Y(meanLine));ctx.lineTo(L+W,Y(meanLine));ctx.stroke();ctx.setLineDash([]);
+    }
+    // courbe
+    ctx.strokeStyle=css(color);ctx.lineWidth=2.2;ctx.lineJoin='round';ctx.beginPath();
+    const N=Math.max(600,Math.floor(W*2));
+    for(let i=0;i<=N;i++){
+      const t=i/N*tMax, x=X(t), y=Y(fn(t));
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    }
+    ctx.stroke();
+  }
+
+  function update(){
+    const P=params();
+    $('vA').textContent=P.A.toFixed(1); $('vO').textContent=P.O.toFixed(1);
+    $('vF').textContent=P.f+' Hz'; $('vD').textContent=P.d.toFixed(2);
+    $('dutyBox').style.display = P.shape==='pulse' ? '' : 'none';
+
+    const st=stats(P);
+    // échelle commune aux trois graphes pour comparer visuellement
+    let lo=Infinity,hi=-Infinity;
+    for(let i=0;i<=400;i++){const v=s(i/400/P.f,P);lo=Math.min(lo,v);hi=Math.max(hi,v);}
+    lo=Math.min(lo,st.mean,-0.0001);hi=Math.max(hi,st.mean,0.0001);
+    const lo2=Math.min(lo,-(hi-st.mean)), hi2=Math.max(hi,st.mean-lo);
+    const pad=0.12*(hi2-lo2); const yMin=Math.floor(lo-pad), yMax=Math.ceil(hi+pad);
+    const yMin2=Math.min(yMin,Math.floor(-(hi-st.mean)-pad)), yMax2=Math.max(yMax,Math.ceil((st.mean-lo)+pad));
+    const Ymin=Math.min(yMin,yMin2), Ymax=Math.max(yMax,yMax2);
+
+    plot($('c1'), t=>s(t,P), '--s', Ymin, Ymax, P, st.mean);
+    plot($('c2'), t=>st.mean, '--dc', Ymin, Ymax, P);
+    plot($('c3'), t=>s(t,P)-st.mean, '--ac', Ymin, Ymax, P);
+
+    $('sMean').textContent=fmt(st.mean);
+    $('sAcMean').textContent=fmt(st.acMean);
+    $('sRms').textContent=fmt(st.rms);
+    $('sAcRms').textContent=fmt(st.acRms);
+    $('eq').innerHTML='s(t) = <span style="color:var(--dc)">'+fmt(st.mean)+'</span> + s<sub>~</sub>(t)';
+    const lhs=st.rms*st.rms, rhs=st.mean*st.mean+st.acRms*st.acRms;
+    $('chk').textContent='('+lhs.toFixed(4)+' = '+rhs.toFixed(4)+')';
+  }
+
+  ['shape','A','O','F','D'].forEach(id=>$(id).addEventListener('input',update));
+  window.addEventListener('resize',update);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',update);
+  update();
+})();
+</script>
+</body>
+</html>
